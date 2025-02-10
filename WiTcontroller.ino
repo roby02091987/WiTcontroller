@@ -29,13 +29,14 @@
 
 // create these files by copying the example files and editing them as needed
 #include "config_network.h"      // LAN networks (SSIDs and passwords)
-#include "config_buttons.h"      // keypad buttons assignments
+#include "config_buttons_1.h"      // keypad buttons assignments
 
 // DO NOT ALTER these files
 #include "config_keypad_etc.h"
 #include "static.h"
 #include "actions.h"
 #include "WiTcontroller.h"
+#include "mod.h"
 
 #if WITCONTROLLER_DEBUG == 0
  #define debug_print(params...) Serial.print(params)
@@ -1550,6 +1551,7 @@ void keypadEvent(KeypadEvent key) {
     break;
   case HOLD:
     debug_print("Button "); debug_print(String(key - '0')); debug_println(" hold.");
+    doKeyHold(key);
     break;
   case IDLE:
     debug_print("Button "); debug_print(String(key - '0')); debug_println(" idle.");
@@ -2068,12 +2070,32 @@ void doKeyPress(char key, bool pressed) {
           doFunction(currentThrottleIndex, (key - '0')+(functionPage*10), false);
           keypadUseType = KEYPAD_USE_OPERATION;
           functionHasBeenSelected = false;
-        }
+        } 
         break;
     }
   }
 
   debug_println("doKeyPress(): end"); 
+}
+
+void doKeyHold(char key) {
+  debug_print("doKeyHold(): ");
+  debug_println(key);
+  switch (key){
+    case '0':
+      doDirectAction(E_STOP);
+      //doDirectAction(E_STOP_CURRENT_LOCO);
+      break;
+    case '#':
+      doDirectAction(POWER_TOGGLE); // or use POWER_OFF
+      break;
+    case '*':
+      esp_restart();
+      break;
+    default:  // do something
+    //  doDirectCommand(key, true);
+      break;
+  }
 }
 
 void doDirectCommand(char key, bool pressed) {
@@ -2194,6 +2216,10 @@ void doDirectAction(int buttonAction) {
       }
       case NEXT_THROTTLE: {
         nextThrottle();
+        break; 
+      }
+      case PREVIOUS_THROTTLE: {
+        previousThrottle();
         break; 
       }
       case SPEED_STOP_THEN_TOGGLE_DIRECTION: {
@@ -2824,6 +2850,27 @@ void doFunction(int multiThrottleIndex, int functionNumber, bool pressed, bool f
   // debug_println("doFunction(): ");
 }
 
+void doFunctionMenu(int multiThrottleIndex, int functionNumber, bool pressed) {
+  doFunctionMenu(multiThrottleIndex, functionNumber, pressed, false);
+}
+void doFunctionMenu(int multiThrottleIndex, int functionNumber, bool pressed, bool force) {
+  char multiThrottleIndexChar = getMultiThrottleChar(multiThrottleIndex);
+  debug_print("doFunctionMenu(): multiThrottleIndex "); debug_println(multiThrottleIndex);
+  if (wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar)>0) {    
+    if (additionalButtonOverrideDefaultLatching) {
+        bool latch = true;
+        bool currentlyOn = functionStates[currentThrottleIndex][functionNumber];
+          if ( (!currentlyOn) && (pressed) ) {
+            doDirectFunction(currentThrottleIndex, functionNumber, true, true);
+          } else if ( (currentlyOn) && (pressed) ) {
+            doDirectFunction(currentThrottleIndex, functionNumber, false, true);
+          }        
+      }
+    writeOledSpeed(); 
+  }
+  // debug_println("doFunction(): ");
+}
+
 // Work out which locos in a consist should get the function
 //
 void doFunctionWhichLocosInConsist(int multiThrottleIndex, int functionNumber, bool pressed) {
@@ -2861,6 +2908,20 @@ void nextThrottle() {
   currentThrottleIndex++;
   if (currentThrottleIndex >= maxThrottles) {
     currentThrottleIndex = 0;
+  }
+  currentThrottleIndexChar = getMultiThrottleChar(currentThrottleIndex);
+
+  if (currentThrottleIndex!=wasThrottle) {
+    writeOledSpeed();
+  }
+}
+
+void previousThrottle() {
+  debug_print("previousThrottle(): "); 
+  int wasThrottle = currentThrottleIndex;
+  currentThrottleIndex--;
+  if (currentThrottleIndex < 0) {
+    currentThrottleIndex = maxThrottles-1;
   }
   currentThrottleIndexChar = getMultiThrottleChar(currentThrottleIndex);
 
@@ -3031,7 +3092,7 @@ void selectFunctionList(int selection) {
   if ((selection>=0) && (selection < MAX_FUNCTIONS)) {
     String function = functionLabels[currentThrottleIndex][selection];
     debug_print("Function Selected: "); debug_println(function);
-    doFunction(currentThrottleIndex, selection, true,false);
+    doFunctionMenu(currentThrottleIndex, selection, true,true);
     functionHasBeenSelected = true;    
     writeOledSpeed();
     // keypadUseType = KEYPAD_USE_OPERATION;   // don't reset it now.  Do so on the release.
@@ -3389,6 +3450,8 @@ void writeOledSpeed() {
   bool foundNextThrottle = false;
   String sNextThrottleNo = "";
   String sNextThrottleSpeedAndDirection = "";
+  String sPreviousThrottleNo = "";
+  String sPreviousThrottleSpeedAndDirection = "";
 
   clearOledArray();
   
@@ -3409,6 +3472,10 @@ void writeOledSpeed() {
     //find the next Throttle that has any locos selected - if there is one
     if (maxThrottles > 1) {
       int nextThrottleIndex = currentThrottleIndex + 1;
+      int previousThrottleIndex = currentThrottleIndex - 1;
+      if (previousThrottleIndex < 0) {
+        previousThrottleIndex=maxThrottles-1;
+      }
 
       for (int i = nextThrottleIndex; i<maxThrottles; i++) {
         if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i)) > 0 ) {
@@ -3440,6 +3507,21 @@ void writeOledSpeed() {
         // + " " + ((currentDirection[nextThrottleIndex]==Forward) ? DIRECTION_FORWARD_TEXT_SHORT : DIRECTION_REVERSE_TEXT_SHORT);
         sNextThrottleSpeedAndDirection = "     " + sNextThrottleSpeedAndDirection ;
         sNextThrottleSpeedAndDirection = sNextThrottleSpeedAndDirection.substring(sNextThrottleSpeedAndDirection.length()-5);
+      }
+      if (foundNextThrottle) {
+        sPreviousThrottleNo =  String(previousThrottleIndex+1);
+        int speed = getDisplaySpeed(previousThrottleIndex);
+        sPreviousThrottleSpeedAndDirection = String(speed);
+        // if (speed>0) {
+          if (currentDirection[previousThrottleIndex]==Forward) {
+            sPreviousThrottleSpeedAndDirection = sPreviousThrottleSpeedAndDirection + DIRECTION_FORWARD_TEXT_SHORT;
+          } else {
+            sPreviousThrottleSpeedAndDirection = DIRECTION_REVERSE_TEXT_SHORT + sPreviousThrottleSpeedAndDirection;
+          }
+        // }
+        // + " " + ((currentDirection[nextThrottleIndex]==Forward) ? DIRECTION_FORWARD_TEXT_SHORT : DIRECTION_REVERSE_TEXT_SHORT);
+        sPreviousThrottleSpeedAndDirection = "     " + sPreviousThrottleSpeedAndDirection ;
+        sPreviousThrottleSpeedAndDirection = sPreviousThrottleSpeedAndDirection.substring(sPreviousThrottleSpeedAndDirection.length()-4);
       }
     }
 
@@ -3501,20 +3583,25 @@ void writeOledSpeed() {
   // direction
   // needed for new function state format
   u8g2.setFont(FONT_DIRECTION); // medium
-  u8g2.drawStr(79,36, sDirection.c_str());
+  u8g2.drawStr(48,50, sDirection.c_str());
 
   // speed
   const char *cSpeed = sSpeed.c_str();
   // u8g2.setFont(u8g2_font_inb21_mn); // big
   u8g2.setFont(FONT_SPEED); // big
   int width = u8g2.getStrWidth(cSpeed);
-  u8g2.drawStr(22+(55-width),45, cSpeed);
+  u8g2.drawStr(28+(55-width),38, cSpeed);
 
   // speed and direction of next throttle
   if ( (maxThrottles > 1) && (foundNextThrottle) ) {
-    u8g2.setFont(FONT_NEXT_THROTTLE);
+    u8g2.setFont(FONT_NXT_PREV);
+    u8g2.drawStr(110,28, "NXT");
+    u8g2.drawStr(14,28, "PREV");
+    u8g2.setFont(FONT_NEXT_THROTTLE);    
     u8g2.drawStr(85+34,38, sNextThrottleNo.c_str() );
-    u8g2.drawStr(85+12,48, sNextThrottleSpeedAndDirection.c_str() );
+    u8g2.drawStr(85+12,48, sNextThrottleSpeedAndDirection.c_str() );    
+    u8g2.drawStr(22,38, sPreviousThrottleNo.c_str() );
+    u8g2.drawStr(14,48, sPreviousThrottleSpeedAndDirection.c_str() );
   }
 
   u8g2.sendBuffer();

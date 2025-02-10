@@ -47,10 +47,10 @@
   #define DIRECT_COMMAND_LIST                           "Comandi diretti"                               // "Direct Commands"
 #endif
 #ifndef DIRECTION_FORWARD_TEXT
-  #define DIRECTION_FORWARD_TEXT                        "Avanti"                                          // "Fwd"
+  #define DIRECTION_FORWARD_TEXT                        "AVANTI"                                          // "Fwd"
 #endif
 #ifndef DIRECTION_REVERSE_TEXT
-  #define DIRECTION_REVERSE_TEXT                        "Indiet."                                         // "Rev"
+  #define DIRECTION_REVERSE_TEXT                        "INDIETRO"                                         // "Rev"
 #endif
 
 
@@ -186,7 +186,7 @@
   #define MENU_ITEM_TEXT_MENU_ADD_LOCO                  "Ind.+# Agg.  * Annulla  # Lista"                 // "addr+# Add * Cancel # Roster"
 #endif
 #ifndef MENU_ITEM_TEXT_MENU_DROP_LOCO
-  #define MENU_ITEM_TEXT_MENU_DROP_LOCO                 "Ind.+# Canc.  * Annulla  # Tutte"                  // "addr+# One * Cancel # All"
+  #define MENU_ITEM_TEXT_MENU_DROP_LOCO                 "Ind.+# Canc  * Annulla  # Tutte"                  // "addr+# One * Cancel # All"
 #endif
 #ifndef MENU_ITEM_TEXT_MENU_TOGGLE_DIRECTION
   #define MENU_ITEM_TEXT_MENU_TOGGLE_DIRECTION          "# Cambia"                                  // "# Toggle"

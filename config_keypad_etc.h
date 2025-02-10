@@ -58,6 +58,6 @@ Keypad keypad = Keypad( makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_
     #define KEYPAD_DEBOUNCE_TIME 10
 #endif
 #ifndef KEYPAD_HOLD_TIME
-    #define KEYPAD_HOLD_TIME 200
+    #define KEYPAD_HOLD_TIME 1000
 #endif
 
